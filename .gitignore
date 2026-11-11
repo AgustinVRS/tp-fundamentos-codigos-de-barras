@@ -1,0 +1,15 @@
+# Entornos virtuales de Python
+.venv/
+venv/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Configuración local
+.env
+.env.local
+
+# Imagen que genera el programa
+/codigo_ean13.png
