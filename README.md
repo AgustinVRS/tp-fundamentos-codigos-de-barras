@@ -1,56 +1,75 @@
-## Instalación y ejecución
+# Códigos de barras del supermercado
 
-Necesitás tener Python 3 instalado. Descargá el repositorio desde **Code → Download ZIP** y descomprimilo, o clonalo con Git. Abrí una terminal en la carpeta del proyecto, donde está `main.py`.
+Avance del Tema 1 de Fundamentos Teóricos de Informática. El programa busca candidatos EAN-8, UPC-A y EAN-13 en tickets de texto, verifica el dígito de control y puede consultar el catálogo mundial de alimentos Open Food Facts.
 
-### Windows (PowerShell)
+## Requisitos
 
-1. Creá un entorno virtual:
+- Instalá Python 3 si todavía no lo tenés. Verificá la instalación con `python3 --version` en Linux o macOS, o con `py -3 --version` en Windows.
+- El programa usa solo la biblioteca estándar de Python. Podés ejecutarlo directamente, sin crear un entorno virtual ni instalar paquetes con `pip`.
+- Las bibliotecas de la interfaz gráfica anterior (`customtkinter`, `python-barcode` y Pillow) solo corresponden al prototipo. La entrada del práctico es `main.py`.
+- La conexión a internet se usa al activar `--catalogo` o pulsar **Consultar catálogo** en la ventana.
 
-   ```powershell
-   py -3 -m venv .venv
-   ```
+## Ejecución
 
-2. Instalá las dependencias con el Python del entorno:
+Descargá el repositorio como ZIP y descomprimilo, o clonalo con Git. Abrí una terminal en la carpeta que contiene `main.py`.
 
-   ```powershell
-   .\.venv\Scripts\python.exe -m pip install customtkinter python-barcode Pillow
-   ```
+```bash
+python3 main.py muestras/tickets.txt
+python3 main.py muestras/tickets.txt --catalogo
+```
 
-3. Abrí la aplicación:
+En Windows también podés usar `py -3` en lugar de `python3`. La primera ejecución funciona sin conexión. Con `--catalogo`, el programa busca nombre y marca para los candidatos comerciales con control válido. Si falta la ficha o falla la conexión, imprime el motivo y continúa.
 
-   ```powershell
-   .\.venv\Scripts\python.exe main.py
-   ```
+## Entrada y salida
 
-Si PowerShell no reconoce `py` pero sí `python`, usá `python -m venv .venv` en el primer paso.
+Pasá la ruta de un archivo UTF-8. Cada ticket puede incluir texto libre y se separa del siguiente con una línea que contiene `---`.
 
-### Linux (Debian, Ubuntu y derivados)
+```text
+3017620422003 NUTELLA 8.500,00
+---
+7791234567890 EJEMPLO CON CONTROL INVÁLIDO
+```
 
-1. Instalá el soporte para entornos virtuales y Tkinter, que usa la interfaz gráfica:
+```text
+Ticket 1
+  3017620422003 | EAN-13 | control válido | NUTELLA | $ 8.500,00
+Ticket 2
+  7791234567890 | EAN-13 | control inválido (leído 0, esperado 8) | EJEMPLO CON CONTROL INVÁLIDO
+    Prefijo 779 — GS1 Argentina
+```
 
-   ```bash
-   sudo apt update
-   sudo apt install python3-venv python3-tk
-   ```
+## Archivos
 
-2. Creá un entorno virtual:
+- `main.py` lee el archivo, separa los tickets y presenta los resultados.
+- `codigos.py` contiene las tres expresiones regulares y calcula el control módulo 10.
+- `catalogo.py` consulta Open Food Facts por el código completo.
+- `muestras/tickets.txt` es una muestra técnica con los tres formatos y casos de control inválido, posible código local y longitud fuera del alcance.
 
-   ```bash
-   python3 -m venv .venv
-   ```
+## Alcance del avance
 
-3. Instalá las dependencias dentro del entorno:
+Se informa el prefijo 779 como asignación de GS1 Argentina. La cobertura de otros rangos GS1 queda pendiente. Los EAN-13 que empiezan con 2 se marcan como posibles códigos de circulación restringida. Para interpretar sus campos queda por documentar el perfil de un comercio con etiquetas reales. Para la entrega quedan pendientes los tickets reales anonimizados.
 
-   ```bash
-   .venv/bin/python -m pip install customtkinter python-barcode Pillow
-   ```
+[Documentación de Open Food Facts](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/tutorials/scanning-barcodes/)
 
-4. Abrí la aplicación desde una sesión con escritorio gráfico:
+## Ventana de escritorio
 
-   ```bash
-   .venv/bin/python main.py
-   ```
+```bash
+python3 main.py muestras/tickets.txt --interfaz
+```
 
-### Para volver a abrir la aplicación
+La ventana carga el archivo y selecciona el primer ticket. Usá **Abrir otro archivo** para cambiar de muestra y **Consultar catálogo** para buscar los productos del ticket seleccionado. También podés combinar `--interfaz` con `--catalogo` para consultar el primer ticket al abrirlo.
 
-Desde la carpeta del proyecto, repetí solo el comando que ejecuta `main.py` para tu sistema. Las dependencias quedan instaladas en `.venv`.
+Usá como primera línea de cada bloque el nombre del comercio. Si el bloque empieza con una línea de producto con código, se muestra un nombre genérico, como «Ticket 1». Los encabezados de la muestra técnica se muestran tal como aparecen en el archivo. La descripción y el precio se leen de la línea del producto. Los precios de ejemplo son ilustrativos y usan coma decimal, como `1.250,00`.
+
+La ventana requiere Tkinter y una sesión de escritorio. Podés comprobar si Tkinter está disponible con `python3 -m tkinter`. En Debian o Ubuntu se instala con `sudo apt install python3-tk` si falta. En Windows usá `py -3` en los comandos.
+
+`interfaz.py` implementa la ventana. `tickets.py` comparte la lectura de bloques y las reglas de consulta entre la interfaz y la CLI.
+
+
+## Demostración del catálogo sin conexión
+
+```bash
+python3 main.py muestras/tickets.txt --catalogo-local muestras/catalogo.json
+```
+
+Agregá `--interfaz` para usar las mismas fichas en la ventana. El JSON guarda resultados de la consulta de muestra a Open Food Facts, indexados por código completo. Si un código no figura en el archivo, el programa indica que falta en la muestra local y sigue procesando el ticket.
