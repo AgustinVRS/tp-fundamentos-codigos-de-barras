@@ -3,17 +3,18 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from tickets import analizar_tickets, consultar, detalle_gs1
+from .informe import exportar_ticket
+from .tickets import analizar_tickets, consultar, detalle_gs1, presentar_producto
 
 
-def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
+def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None, *, respaldo_local=False):
     try:
         ventana = tk.Tk()
     except tk.TclError as error:
         raise RuntimeError(f"No se pudo abrir la ventana: {error}") from error
 
     ventana.title("Analizador de tickets")
-    ventana.geometry("1260x570")
+    ventana.geometry("1000x600")
     ventana.minsize(760, 360)
     ventana.columnconfigure(0, weight=1)
     ventana.rowconfigure(1, weight=1)
@@ -47,23 +48,20 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
     estilo.configure("Detalle.TFrame", background="white")
     estilo.configure("Comercio.TLabel", background="white", foreground=tinta,
                      font=("TkDefaultFont", 16, "bold"))
-    estilo.configure("Treeview", rowheight=46, background="white", fieldbackground="white",
-                     foreground=tinta, borderwidth=0, relief="flat")
-    estilo.layout("Treeview.Heading", [
-        ("Treeheading.cell", {"sticky": "nswe"}),
-        ("Treeheading.padding", {"sticky": "nswe", "children": [
-            ("Treeheading.text", {"sticky": "we"}),
-        ]}),
-    ])
-    estilo.configure("Treeview.Heading", background="#EAF0F8", foreground=tinta, padding=(12, 10))
+    estilo.configure("Producto.TLabel", background="white", foreground=tinta,
+                     font=("TkDefaultFont", 11, "bold"))
+    estilo.configure("Meta.TLabel", background="white", foreground="#52637B")
+    estilo.configure("Invalido.TLabel", background="white", foreground="#A12237")
+    estilo.configure("Separador.TFrame", background="#DCE4EE")
     estilo.configure("TScrollbar", background="#CED9EA", troughcolor="#F2F5FA",
                      borderwidth=0, arrowsize=11)
 
+    tk.Frame(ventana, background=oro, height=4).grid(row=0, sticky="new")
     barra = ttk.Frame(ventana, padding=(20, 14), style="Marca.TFrame")
-    barra.grid(sticky="ew")
+    barra.grid(row=0, sticky="ew", pady=(4, 0))
     barra.columnconfigure(0, weight=1)
     ttk.Label(barra, text="Boquita Passion", style="Marca.TLabel").grid(row=0, column=0, sticky="w")
-    archivo_actual = tk.StringVar(value=archivo.name)
+    archivo_actual = tk.StringVar(value=f"Analizador de tickets · {archivo.name}")
     ttk.Label(barra, textvariable=archivo_actual, style="Archivo.TLabel").grid(row=1, column=0, sticky="w")
 
     panel = ttk.Frame(ventana)
@@ -86,32 +84,35 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
     ttk.Label(detalle, textvariable=comercio, style="Comercio.TLabel").grid(
         row=0, column=0, sticky="w", pady=(0, 16)
     )
-    columnas = ("codigo", "descripcion", "precio", "tipo", "control", "gs1", "producto")
-    tabla = ttk.Treeview(detalle, columns=columnas, show="headings", selectmode="none")
-    for columna, titulo, ancho in zip(
-        columnas, ("Código", "Descripción del ticket", "Precio", "Tipo", "Control", "Asignación GS1", "Catálogo"),
-        (115, 166, 95, 65, 145, 155, 190)
-    ):
-        tabla.heading(columna, text=titulo)
-        tabla.column(columna, width=ancho, minwidth=55, stretch=True, anchor="e" if columna == "precio" else "w")
-    tabla.tag_configure("invalido", foreground="#a52130", background="#FFF0F1")
-    tabla.tag_configure("alterna", background="#F0F5FD")
-    tabla.grid(row=1, column=0, sticky="nsew")
-    vertical = ttk.Scrollbar(detalle, command=tabla.yview)
-    vertical.grid(row=1, column=1, sticky="ns")
-    horizontal = ttk.Scrollbar(detalle, orient="horizontal", command=tabla.xview)
-    horizontal.grid(row=2, column=0, sticky="ew")
-    def ajustar_scroll(barra, primero, ultimo):
-        barra.set(primero, ultimo)
-        if float(primero) == 0 and float(ultimo) == 1:
-            barra.grid_remove()
-        else:
-            barra.grid()
+    lienzo = tk.Canvas(detalle, background="white", highlightthickness=0, width=1, height=1)
+    lienzo.grid(row=1, column=0, columnspan=2, sticky="nsew")
+    filas = ttk.Frame(lienzo, style="Detalle.TFrame")
+    contenido = lienzo.create_window(0, 0, window=filas, anchor="nw")
+    vertical = ttk.Scrollbar(detalle, command=lienzo.yview)
+    vertical.grid(row=1, column=2, sticky="ns")
 
-    tabla.configure(
-        yscrollcommand=lambda primero, ultimo: ajustar_scroll(vertical, primero, ultimo),
-        xscrollcommand=lambda primero, ultimo: ajustar_scroll(horizontal, primero, ultimo),
-    )
+    def ajustar_scroll(primero, ultimo):
+        vertical.set(primero, ultimo)
+        if float(primero) == 0 and float(ultimo) == 1:
+            vertical.grid_remove()
+        else:
+            vertical.grid()
+
+    def ajustar_ancho(evento):
+        lienzo.itemconfigure(contenido, width=evento.width)
+        for etiqueta in textos:
+            etiqueta.configure(wraplength=max(160, evento.width - 195))
+
+    def desplazar(evento):
+        pasos = -1 if evento.num == 4 or evento.delta > 0 else 1
+        lienzo.yview_scroll(pasos, "units")
+
+    textos = []
+    lienzo.configure(yscrollcommand=ajustar_scroll)
+    lienzo.bind("<Configure>", ajustar_ancho)
+    filas.bind("<Configure>", lambda _: lienzo.configure(scrollregion=lienzo.bbox("all")))
+    for evento in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+        lienzo.bind(evento, desplazar)
 
     estado = tk.StringVar()
     ttk.Label(ventana, textvariable=estado, padding=14).grid(row=2, sticky="w")
@@ -120,7 +121,10 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
     ejecutor = ThreadPoolExecutor(max_workers=1)
 
     def mostrar(_evento=None):
-        tabla.delete(*tabla.get_children())
+        for fila in filas.winfo_children():
+            fila.destroy()
+        textos.clear()
+        lienzo.yview_moveto(0)
         indice = seleccion.get()
         if indice < 0:
             comercio.set("Sin tickets")
@@ -128,7 +132,7 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
             return
         nombre, candidatos = tickets[indice]
         comercio.set(nombre)
-        for fila, candidato in enumerate(candidatos):
+        for candidato in candidatos:
             codigo = candidato["codigo"]
             esperado = candidato["control_esperado"]
             valido = candidato["control_leido"] == esperado
@@ -137,14 +141,30 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
             if asignacion.startswith("Posible"):
                 asignacion = "Perfil local sin confirmar"
             precio = f'$ {candidato["precio"]}' if candidato["precio"] else "—"
-            tabla.insert(
-                "", "end",
-                values=(
-                    codigo, candidato["descripcion"] or "—", precio, candidato["tipo"],
-                    control, asignacion or "—", resultados.get(indice, {}).get(codigo) or "—",
-                ),
-                tags=(("alterna",) if fila % 2 else ()) if valido else ("invalido",),
-            )
+            ttk.Frame(filas, height=1, style="Separador.TFrame").pack(fill="x")
+            fila = ttk.Frame(filas, padding=(0, 13), style="Detalle.TFrame")
+            fila.pack(fill="x")
+            fila.columnconfigure(0, weight=1)
+
+            def agregar(texto, estilo, renglon, columna=0):
+                etiqueta = ttk.Label(fila, text=texto, style=estilo, justify="left")
+                etiqueta.grid(row=renglon, column=columna, sticky="w" if columna == 0 else "e",
+                              padx=(0, 14) if columna == 0 else (0, 0), pady=(0, 3))
+                if columna == 0:
+                    etiqueta.configure(wraplength=max(160, lienzo.winfo_width() - 195))
+                    textos.append(etiqueta)
+                for evento in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+                    etiqueta.bind(evento, desplazar)
+
+            ficha = resultados.get(indice, {}).get(codigo)
+            titulo, detalle_catalogo = presentar_producto(candidato, ficha)
+            agregar(titulo, "Producto.TLabel", 0)
+            agregar(precio, "Producto.TLabel", 0, 1)
+            meta = f'{codigo} · {candidato["tipo"]}'
+            agregar(f"{meta} · {asignacion}" if asignacion else meta, "Meta.TLabel", 1)
+            agregar(control, "Meta.TLabel" if valido else "Invalido.TLabel", 1, 1)
+            if detalle_catalogo:
+                agregar(detalle_catalogo, "Meta.TLabel", 2)
         estado.set(f"{len(candidatos)} códigos detectados")
 
     def cargar_lista():
@@ -182,7 +202,7 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
             messagebox.showerror("No se pudo leer el archivo", str(error), parent=ventana)
             return
         resultados.clear()
-        archivo_actual.set(nuevo.name)
+        archivo_actual.set(f"Analizador de tickets · {nuevo.name}")
         cargar_lista()
 
     def consultar_catalogo():
@@ -192,10 +212,10 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
         candidatos = tickets[indice][1]
         boton_catalogo.state(["disabled"])
         boton_abrir.state(["disabled"])
-        estado.set("Cargando fichas locales…" if fichas is not None else "Consultando Open Food Facts…")
+        estado.set("Cargando fichas locales…" if fichas is not None and not respaldo_local else "Consultando Open Food Facts…")
 
         def buscar():
-            return {candidato["codigo"]: consultar(candidato, cache, fichas) for candidato in candidatos}
+            return {candidato["codigo"]: consultar(candidato, cache, fichas, respaldo_local=respaldo_local) for candidato in candidatos}
 
         tarea = ejecutor.submit(buscar)
 
@@ -213,10 +233,34 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None):
 
         actualizar()
 
+    def guardar_pdf():
+        indice = seleccion.get()
+        if indice < 0:
+            return
+        nombre, candidatos = tickets[indice]
+        ruta = filedialog.asksaveasfilename(
+            parent=ventana, defaultextension=".pdf", initialfile=f"ticket-{indice + 1}.pdf",
+            filetypes=[("Informe PDF", "*.pdf")],
+        )
+        if not ruta:
+            return
+        try:
+            exportar_ticket(ruta, archivo_actual.get().split(" · ", 1)[1], nombre,
+                            candidatos, resultados.get(indice, {}))
+        except ImportError:
+            messagebox.showerror("Exportación PDF", "Instalá ReportLab con python3 -m pip install reportlab.", parent=ventana)
+        except OSError as error:
+            messagebox.showerror("No se pudo guardar el PDF", str(error), parent=ventana)
+        else:
+            estado.set(f"PDF guardado · {Path(ruta).name}")
+
     boton_abrir = ttk.Button(barra, text="Abrir otro archivo", command=abrir_archivo, style="Abrir.TButton")
     boton_abrir.grid(row=0, column=1, padx=8)
-    boton_catalogo = ttk.Button(barra, text="Consultar catálogo", command=consultar_catalogo, style="Oro.TButton")
-    boton_catalogo.grid(row=0, column=2)
+    acciones = ttk.Frame(detalle, style="Detalle.TFrame")
+    acciones.grid(row=0, column=1, sticky="e", padx=(12, 0), pady=(0, 16))
+    boton_catalogo = ttk.Button(acciones, text="Consultar catálogo", command=consultar_catalogo)
+    boton_catalogo.pack(side="left", padx=(0, 8))
+    ttk.Button(acciones, text="Descargar PDF", command=guardar_pdf, style="Oro.TButton").pack(side="left")
     cargar_lista()
     if consultar_al_abrir:
         ventana.after(0, consultar_catalogo)

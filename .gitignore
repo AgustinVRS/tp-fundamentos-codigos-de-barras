@@ -13,3 +13,12 @@ __pycache__/
 
 # Imagen que genera el programa
 /codigo_ean13.png
+
+# Informes PDF exportados
+*.pdf
+
+# Archivos temporales del editor y del sistema
+*.swp
+*~
+.DS_Store
+Thumbs.db

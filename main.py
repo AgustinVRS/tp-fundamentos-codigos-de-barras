@@ -2,17 +2,25 @@ import argparse
 import json
 from pathlib import Path
 
-from tickets import analizar_tickets, consultar, detalle_gs1
+from boquita_passion.tickets import analizar_tickets, consultar, detalle_gs1
 
 
 def main():
     parser = argparse.ArgumentParser(description="Analiza códigos de barras en tickets.")
-    parser.add_argument("archivo", type=Path, help="Archivo de tickets en UTF-8")
+    parser.add_argument("archivo", nargs="?", type=Path, help="Archivo UTF-8 (si se omite, abre la demo)")
     modo_catalogo = parser.add_mutually_exclusive_group()
     modo_catalogo.add_argument("--catalogo-local", type=Path, metavar="JSON", help="Usa fichas guardadas sin internet")
     modo_catalogo.add_argument("--catalogo", action="store_true", help="Consulta Open Food Facts")
     parser.add_argument("--interfaz", action="store_true", help="Abre la ventana de escritorio")
     opciones = parser.parse_args()
+
+    respaldo_local = opciones.archivo is None and not opciones.catalogo and opciones.catalogo_local is None
+    if opciones.archivo is None:
+        muestras = Path(__file__).resolve().parent / "muestras"
+        opciones.archivo = muestras / "tickets_demo.txt"
+        opciones.interfaz = True
+        if respaldo_local:
+            opciones.catalogo_local = muestras / "catalogo.json"
 
     try:
         texto = opciones.archivo.read_text(encoding="utf-8")
@@ -31,9 +39,9 @@ def main():
     tickets = analizar_tickets(texto)
     if opciones.interfaz:
         try:
-            from interfaz import abrir_interfaz
+            from boquita_passion.interfaz import abrir_interfaz
 
-            abrir_interfaz(opciones.archivo, tickets, opciones.catalogo or fichas is not None, fichas)
+            abrir_interfaz(opciones.archivo, tickets, opciones.catalogo or fichas is not None, fichas, respaldo_local=respaldo_local)
         except ImportError:
             parser.error("La interfaz necesita Tkinter. Consultá el README.")
         except RuntimeError as error:
