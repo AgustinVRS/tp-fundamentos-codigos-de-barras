@@ -1,5 +1,7 @@
 import re
 
+PESO_CON_CERO = re.compile(r"(?<![0-9])0(25[0-9]{10})([0-9])(?![0-9])")
+
 PATRONES = {
     "EAN-8": re.compile(r"(?<![0-9])([0-9]{7})([0-9])(?![0-9])"),
     "UPC-A": re.compile(r"(?<![0-9])([0-9]{11})([0-9])(?![0-9])"),
@@ -17,7 +19,7 @@ def calcular_control(cuerpo):
 
 def extraer_codigos(texto):
     candidatos = []
-    for tipo, patron in PATRONES.items():
+    for tipo, patron in (*PATRONES.items(), ("EAN-13", PESO_CON_CERO)):
         for coincidencia in patron.finditer(texto):
             cuerpo, control = coincidencia.groups()
             candidatos.append({

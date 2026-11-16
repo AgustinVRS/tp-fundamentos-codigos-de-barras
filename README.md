@@ -1,91 +1,72 @@
-# Códigos de barras del supermercado
+# Boquita Passion
 
-Avance del Tema 1 de Fundamentos Teóricos de Informática. El programa busca candidatos EAN-8, UPC-A y EAN-13 en tickets de texto, verifica el dígito de control y puede consultar el catálogo mundial de alimentos Open Food Facts.
+**Analizador de tickets de supermercado** · Fundamentos Teóricos de Informática, Tema 1
+
+Extrae códigos **EAN-8, UPC-A y EAN-13** con expresiones regulares, verifica su dígito de control y muestra los productos y precios por comercio. También permite consultar **Open Food Facts** y exportar el ticket seleccionado en PDF.
 
 ## Inicio rápido
 
-Desde la carpeta del proyecto, abrí la ventana con el ticket de muestra:
+Descargá el repositorio, descomprimilo si bajaste un ZIP y abrí una terminal en la carpeta que contiene `main.py`.
 
 ```bash
 python3 main.py
 ```
 
-Si tu sistema usa `python` o `py -3`, reemplazá `python3` por ese comando. El inicio rápido consulta Open Food Facts y usa la ficha guardada si la consulta falla o el producto no aparece. Para consultar exclusivamente en vivo, ejecutá `python3 main.py --catalogo`. La ventana requiere Tkinter.
+Se abre la ventana con la muestra. La demo intenta consultar Open Food Facts y usa el catálogo guardado si la consulta falla o falta la ficha. Desde la ventana podés cambiar de ticket, abrir otro archivo o consultar el catálogo del ticket seleccionado. Al guardar cambios en el archivo abierto, la ventana actualiza los tickets automáticamente.
 
-## Requisitos
+Necesitás **Python 3**. Para la ventana, comprobá Tkinter con `python3 -m tkinter`. Si falta en Debian o Ubuntu, instalalo con `sudo apt install python3-tk`. En Windows, usá `py -3` en lugar de `python3`.
 
-- Instalá Python 3 si todavía no lo tenés. Verificá la instalación con `python3 --version` en Linux o macOS, o con `py -3 --version` en Windows.
-- El análisis de tickets y la consulta al catálogo usan solo la biblioteca estándar de Python. Podés ejecutarlo directamente, sin crear un entorno virtual ni instalar paquetes con `pip`.
-- Las bibliotecas de la interfaz gráfica anterior (`customtkinter`, `python-barcode` y Pillow) solo corresponden al prototipo. La entrada del práctico es `main.py`.
-- La consulta en vivo se intenta al iniciar sin argumentos, al activar `--catalogo` o pulsar **Consultar catálogo** en la ventana.
+## Comandos para la defensa
 
-## Ejecución
+| Para | Comando |
+| --- | --- |
+| Analizar por consola, sin consultar el catálogo | `python3 main.py muestras/tickets_demo.txt` |
+| Abrir la ventana con Open Food Facts en vivo | `python3 main.py --catalogo` |
+| Abrir la ventana con el catálogo sin conexión | `python3 main.py muestras/tickets_demo.txt --interfaz --catalogo-local muestras/catalogo.json` |
+| Ver todas las opciones | `python3 main.py --help` |
 
-Descargá el repositorio como ZIP y descomprimilo, o clonalo con Git. Abrí una terminal en la carpeta que contiene `main.py`.
+## Formato del ticket
 
-```bash
-python3 main.py muestras/tickets_demo.txt
-python3 main.py muestras/tickets_demo.txt --catalogo
-```
-
-En Windows también podés usar `py -3` en lugar de `python3`. La primera ejecución funciona sin conexión. Con `--catalogo`, el programa busca nombre y marca para los candidatos comerciales con control válido. Si falta la ficha o falla la conexión, imprime el motivo y continúa.
-
-## Entrada y salida
-
-Pasá la ruta de un archivo UTF-8. Cada ticket puede incluir texto libre y se separa del siguiente con una línea que contiene `---`.
+Usá un archivo `.txt` en UTF-8. Poné el nombre del comercio en la primera línea de cada bloque y separá los tickets con una línea que contenga solo `---`. En una línea de producto, podés poner la descripción después del código y el precio al final, con coma decimal.
 
 ```text
+SUPERMERCADO EJEMPLO
 3017620422003 NUTELLA 8.500,00
 ---
-7791234567890 EJEMPLO CON CONTROL INVÁLIDO
+KIOSCO LA ESQUINA
+77900104 CARAMELOS 300,00
 ```
 
-```text
-Ticket 1
-  3017620422003 | EAN-13 | control válido | NUTELLA | $ 8.500,00
-Ticket 2
-  7791234567890 | EAN-13 | control inválido (leído 0, esperado 8) | EJEMPLO CON CONTROL INVÁLIDO
-    Prefijo 779 — GS1 Argentina
-```
+La muestra del repositorio es ilustrativa. Si el ticket trae un código sin descripción, la ventana y el PDF pueden mostrar el nombre que devuelva el catálogo. El precio se lee del ticket.
 
-## Archivos
+## Exportar un PDF
 
-- `main.py` lee el archivo, separa los tickets y presenta los resultados.
-- `boquita_passion/codigos.py` contiene las tres expresiones regulares y calcula el control módulo 10.
-- `boquita_passion/catalogo.py` consulta Open Food Facts por el código completo.
-- `muestras/tickets_demo.txt` es una muestra técnica con los tres formatos y casos de control inválido, posible código local y longitud fuera del alcance.
-
-## Alcance del avance
-
-Se informa el prefijo 779 como asignación de GS1 Argentina. La cobertura de otros rangos GS1 queda pendiente. Los EAN-13 que empiezan con 2 se marcan como posibles códigos de circulación restringida. Para interpretar sus campos queda por documentar el perfil de un comercio con etiquetas reales. Para la entrega quedan pendientes los tickets reales anonimizados.
-
-[Documentación de Open Food Facts](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/tutorials/scanning-barcodes/)
-
-## Ventana de escritorio
+La exportación requiere **ReportLab**. Instalalo una sola vez en un entorno virtual. En Linux o macOS:
 
 ```bash
-python3 main.py muestras/tickets_demo.txt --interfaz
+python3 -m venv .venv
+.venv/bin/python -m pip install reportlab
+.venv/bin/python main.py
 ```
 
-La ventana carga el archivo y selecciona el primer ticket. Usá **Abrir otro archivo** para cambiar de muestra y **Consultar catálogo** para buscar los productos del ticket seleccionado. También podés combinar `--interfaz` con `--catalogo` para consultar el primer ticket al abrirlo.
+En Windows, creá el entorno con `py -3 -m venv .venv` y usá `.venv\Scripts\python.exe` en los dos comandos siguientes. Una vez abierta la ventana, seleccioná el ticket y pulsá **Descargar PDF**. El informe incluye las fichas del catálogo que ya estén visibles.
 
-Usá como primera línea de cada bloque el nombre del comercio. Si el bloque empieza con una línea de producto con código, se muestra un nombre genérico, como «Ticket 1». Los encabezados de la muestra técnica se muestran tal como aparecen en el archivo. La descripción y el precio se leen de la línea del producto. Los precios de ejemplo son ilustrativos y usan coma decimal, como `1.250,00`.
+## Archivos principales
 
-La ventana requiere Tkinter y una sesión de escritorio. Podés comprobar si Tkinter está disponible con `python3 -m tkinter`. En Debian o Ubuntu se instala con `sudo apt install python3-tk` si falta. En Windows usá `py -3` en los comandos.
+- `main.py` — punto de entrada para la consola y la ventana.
+- `boquita_passion/` — extracción, validación, lectura de tickets, catálogo, interfaz y exportación.
+- `muestras/` — ticket de demostración y fichas del catálogo sin conexión.
 
-`boquita_passion/interfaz.py` implementa la ventana. `boquita_passion/tickets.py` comparte la lectura de bloques y las reglas de consulta entre la interfaz y la CLI.
+El encabezado identifica al comercio. Para códigos con control válido, el programa informa la organización GS1 consultando la tabla local de rangos de `boquita_passion/prefijos.py`, sin pedir el país ni usar internet. Por ejemplo, muestra `779` para Argentina y `060` para Estados Unidos. Esa asignación señala quién asignó la numeración. El país de fabricación requiere otros datos. Los EAN-13 que empiezan con `2` se marcan como posibles códigos de balanza.
 
 
-## Demostración del catálogo sin conexión
+## Productos de peso variable
 
-```bash
-python3 main.py muestras/tickets_demo.txt --catalogo-local muestras/catalogo.json
-```
+El perfil documentado se observó en **Coto, sucursal 184**. La expresión regular en `boquita_passion/balanza.py` separa el prefijo `25`, cinco dígitos de producto, cinco de peso en gramos y el dígito de control EAN-13.
 
-Agregá `--interfaz` para usar las mismas fichas en la ventana. El JSON guarda resultados de la consulta de muestra a Open Food Facts, indexados por código completo. Si un código no figura en el archivo, el programa indica que falta en la muestra local y sigue procesando el ticket.
+| Código | Identificador local | Peso embebido |
+| --- | --- | --- |
+| `2515271001505` | `15271` | `00150` → 0,150 kg |
+| `2515271001468` | `15271` | `00146` → 0,146 kg |
 
-## Descargar un ticket en PDF
-
-Para habilitar la exportación, instalá ReportLab con `python3 -m pip install reportlab` en el entorno de Python con el que ejecutás el TP. En Windows podés usar `py -3 -m pip install reportlab`. Si tu distribución requiere un entorno virtual, instalá ReportLab dentro de ese entorno y ejecutá el proyecto con su Python.
-
-Seleccioná un comercio en la ventana, pulsá **Descargar PDF** y elegí dónde guardarlo. El informe incluye las fichas que ya estén visibles y se puede generar sin conexión.
+Probá ambos ejemplos con `python3 main.py muestras/tickets_reales.txt`. El peso se lee del código. Los renglones sin un código compatible quedan fuera del análisis. El formato se aplica a códigos válidos con prefijo `25`, incluido el número impreso con un cero de relleno delante. En otros comercios el peso se muestra como una interpretación según el formato observado. Para otros prefijos o controles inválidos se conserva el aviso de circulación restringida. El peso embebido se muestra entre paréntesis junto al nombre del producto.

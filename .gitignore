@@ -22,3 +22,10 @@ __pycache__/
 *~
 .DS_Store
 Thumbs.db
+
+# Fotos y capturas de los comprobantes
+/muestras/**/*.[jJ][pP][gG]
+/muestras/**/*.[jJ][pP][eE][gG]
+/muestras/**/*.[pP][nN][gG]
+/muestras/**/*.[wW][eE][bB][pP]
+/muestras/**/*.[aA][vV][iI][fF]

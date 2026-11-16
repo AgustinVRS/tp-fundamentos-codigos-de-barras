@@ -4,7 +4,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from .informe import exportar_ticket
-from .tickets import analizar_tickets, consultar, detalle_gs1, presentar_producto
+from .tickets import analizar_tickets, consultar, detalle_gs1, mostrar_precio, presentar_producto, titulo_con_peso, total_importes
 
 
 def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None, *, respaldo_local=False):
@@ -61,6 +61,8 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None, *, r
     barra.grid(row=0, sticky="ew", pady=(4, 0))
     barra.columnconfigure(0, weight=1)
     ttk.Label(barra, text="Boquita Passion", style="Marca.TLabel").grid(row=0, column=0, sticky="w")
+    ruta_actual = archivo.resolve()
+    texto_actual = None
     archivo_actual = tk.StringVar(value=f"Analizador de tickets · {archivo.name}")
     ttk.Label(barra, textvariable=archivo_actual, style="Archivo.TLabel").grid(row=1, column=0, sticky="w")
 
@@ -114,6 +116,10 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None, *, r
     for evento in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
         lienzo.bind(evento, desplazar)
 
+    total_ticket = tk.StringVar()
+    resumen = ttk.Label(detalle, textvariable=total_ticket, style="Producto.TLabel")
+    resumen.grid(row=2, column=0, columnspan=2, sticky="e", pady=(12, 0))
+
     estado = tk.StringVar()
     ttk.Label(ventana, textvariable=estado, padding=14).grid(row=2, sticky="w")
     resultados = {}
@@ -128,19 +134,22 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None, *, r
         indice = seleccion.get()
         if indice < 0:
             comercio.set("Sin tickets")
+            total_ticket.set("")
             estado.set("El archivo está vacío.")
             return
         nombre, candidatos = tickets[indice]
         comercio.set(nombre)
+        total = total_importes(candidatos, nombre)
+        total_ticket.set(f"Total de renglones · {total}" if total else "")
         for candidato in candidatos:
             codigo = candidato["codigo"]
-            esperado = candidato["control_esperado"]
-            valido = candidato["control_leido"] == esperado
+            esperado = candidato.get("control_esperado")
+            valido = candidato.get("control_leido") == esperado
             control = "Válido" if valido else f"Inválido · esperaba {esperado}"
             asignacion = detalle_gs1(candidato)
             if asignacion.startswith("Posible"):
                 asignacion = "Perfil local sin confirmar"
-            precio = f'$ {candidato["precio"]}' if candidato["precio"] else "—"
+            precio = mostrar_precio(candidato["precio"], nombre)
             ttk.Frame(filas, height=1, style="Separador.TFrame").pack(fill="x")
             fila = ttk.Frame(filas, padding=(0, 13), style="Detalle.TFrame")
             fila.pack(fill="x")
@@ -158,19 +167,21 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None, *, r
 
             ficha = resultados.get(indice, {}).get(codigo)
             titulo, detalle_catalogo = presentar_producto(candidato, ficha)
-            agregar(titulo, "Producto.TLabel", 0)
+            agregar(titulo_con_peso(titulo, candidato), "Producto.TLabel", 0)
             agregar(precio, "Producto.TLabel", 0, 1)
-            meta = f'{codigo} · {candidato["tipo"]}'
+            meta = f'{codigo} · {candidato["tipo"]}' if codigo else "Sin código de barras"
             agregar(f"{meta} · {asignacion}" if asignacion else meta, "Meta.TLabel", 1)
-            agregar(control, "Meta.TLabel" if valido else "Invalido.TLabel", 1, 1)
+            if codigo:
+                agregar(control, "Meta.TLabel" if valido else "Invalido.TLabel", 1, 1)
             if detalle_catalogo:
                 agregar(detalle_catalogo, "Meta.TLabel", 2)
-        estado.set(f"{len(candidatos)} códigos detectados")
+        cantidad_codigos = sum(bool(fila["codigo"]) for fila in candidatos)
+        estado.set(f"{len(candidatos)} renglones · {cantidad_codigos} códigos detectados")
 
-    def cargar_lista():
+    def cargar_lista(indice_activo=0):
         for boton in lista.winfo_children():
             boton.destroy()
-        seleccion.set(0 if tickets else -1)
+        seleccion.set(min(indice_activo, len(tickets) - 1) if tickets else -1)
 
         def elegir(indice):
             seleccion.set(indice)
@@ -180,30 +191,61 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None, *, r
 
         for indice, (nombre, candidatos) in enumerate(tickets):
             cantidad = len(candidatos)
-            etiqueta = "código" if cantidad == 1 else "códigos"
+            etiqueta = "renglón" if cantidad == 1 else "renglones"
             boton = ttk.Button(
                 lista, text=f"{nombre}\n{cantidad} {etiqueta}", width=25,
                 style="Ticket.TButton", command=lambda indice=indice: elegir(indice),
             )
             boton.pack(fill="x", pady=(0, 8))
-            if indice == 0:
+            if indice == seleccion.get():
                 boton.state(["selected"])
         mostrar()
 
     def abrir_archivo():
-        nonlocal tickets
+        nonlocal tickets, ruta_actual, texto_actual
         ruta = filedialog.askopenfilename(parent=ventana, filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*")])
         if not ruta:
             return
         try:
-            nuevo = Path(ruta)
-            tickets = analizar_tickets(nuevo.read_text(encoding="utf-8"))
+            nuevo = Path(ruta).resolve()
+            texto = nuevo.read_text(encoding="utf-8")
+            tickets = analizar_tickets(texto)
         except (OSError, UnicodeError) as error:
             messagebox.showerror("No se pudo leer el archivo", str(error), parent=ventana)
             return
+        ruta_actual, texto_actual = nuevo, texto
         resultados.clear()
         archivo_actual.set(f"Analizador de tickets · {nuevo.name}")
         cargar_lista()
+
+    def revisar_archivo():
+        nonlocal tickets, texto_actual
+        ventana.after(1000, revisar_archivo)
+        # Los resultados de una consulta pertenecen a los tickets con que se inició.
+        if boton_catalogo.instate(["disabled"]):
+            return
+        try:
+            texto = ruta_actual.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            # Algunos editores reemplazan el archivo al guardar. Reintentar en el próximo ciclo.
+            return
+        if texto == texto_actual:
+            return
+        texto_actual = texto
+        nuevos = analizar_tickets(texto)
+        if nuevos == tickets:
+            return
+
+        indice = seleccion.get()
+        ticket_activo = tickets[indice] if indice >= 0 else None
+        if ticket_activo in nuevos:
+            indice = nuevos.index(ticket_activo)
+        for numero in list(resultados):
+            if numero >= len(nuevos) or tickets[numero] != nuevos[numero]:
+                del resultados[numero]
+        tickets = nuevos
+        cargar_lista(max(0, indice))
+        estado.set(f"{ruta_actual.name} actualizado")
 
     def consultar_catalogo():
         indice = seleccion.get()
@@ -262,6 +304,7 @@ def abrir_interfaz(archivo, tickets, consultar_al_abrir=False, fichas=None, *, r
     boton_catalogo.pack(side="left", padx=(0, 8))
     ttk.Button(acciones, text="Descargar PDF", command=guardar_pdf, style="Oro.TButton").pack(side="left")
     cargar_lista()
+    ventana.after(1000, revisar_archivo)
     if consultar_al_abrir:
         ventana.after(0, consultar_catalogo)
     try:

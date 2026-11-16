@@ -1,6 +1,6 @@
 from xml.sax.saxutils import escape
 
-from .tickets import detalle_gs1, presentar_producto
+from .tickets import detalle_gs1, mostrar_precio, presentar_producto, titulo_con_peso
 
 
 def exportar_ticket(destino, archivo, nombre, candidatos, productos):
@@ -70,22 +70,23 @@ def exportar_ticket(destino, archivo, nombre, candidatos, productos):
     invalidos = 0
     for candidato in candidatos:
         codigo = candidato["codigo"]
-        esperado = candidato["control_esperado"]
-        valido = candidato["control_leido"] == esperado
+        esperado = candidato.get("control_esperado")
+        valido = candidato.get("control_leido") == esperado
         invalidos += not valido
         control = "Control válido" if valido else f"Control inválido · esperaba {esperado}"
         titulo, detalle_catalogo = presentar_producto(candidato, productos.get(codigo))
         izquierda = [
-            texto(titulo, 12, negrita=True),
-            texto(f'{codigo} · {candidato["tipo"]}', 9, gris),
-            texto(control, 9, gris if valido else colors.HexColor("#A12237")),
+            texto(titulo_con_peso(titulo, candidato), 12, negrita=True),
+            texto(f'{codigo} · {candidato["tipo"]}' if codigo else "Sin código de barras", 9, gris),
         ]
+        if codigo:
+            izquierda.append(texto(control, 9, gris if valido else colors.HexColor("#A12237")))
         if asignacion := detalle_gs1(candidato):
             izquierda.append(texto(asignacion, 9, gris))
         if detalle_catalogo:
             izquierda.append(texto(detalle_catalogo, 9, gris))
         precio = candidato["precio"]
-        fila = Table([[izquierda, texto(f"$ {precio}" if precio else "—", 12, negrita=True, alineacion=2)]],
+        fila = Table([[izquierda, texto(mostrar_precio(precio, nombre), 12, negrita=True, alineacion=2)]],
                      colWidths=anchos)
         fila.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -94,5 +95,6 @@ def exportar_ticket(destino, archivo, nombre, candidatos, productos):
             ("LINEBELOW", (0, 0), (-1, -1), .5, colors.HexColor("#DFE7F2")),
         ]))
         flujo.append(KeepTogether([fila]))
-    flujo.extend([Spacer(1, 12), texto(f"Códigos detectados: {len(candidatos)} · Controles inválidos: {invalidos}", 10, gris)])
+    cantidad_codigos = sum(bool(fila["codigo"]) for fila in candidatos)
+    flujo.extend([Spacer(1, 12), texto(f"Códigos detectados: {cantidad_codigos} · Controles inválidos: {invalidos}", 10, gris)])
     doc.build(flujo, onFirstPage=decorar, onLaterPages=decorar)

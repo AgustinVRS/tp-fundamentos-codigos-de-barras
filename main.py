@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
-from boquita_passion.tickets import analizar_tickets, consultar, detalle_gs1
+from boquita_passion.tickets import analizar_tickets, consultar, detalle_gs1, mostrar_precio, titulo_con_peso
 
 
 def main():
@@ -49,12 +49,16 @@ def main():
         return
 
     productos = {}
-    for numero, (_, candidatos) in enumerate(tickets, start=1):
-        print(f"Ticket {numero}")
+    for numero, (comercio, candidatos) in enumerate(tickets, start=1):
+        print(f"Ticket {numero} — {comercio}")
         if not candidatos:
             print("  Sin candidatos EAN-8, UPC-A o EAN-13.")
         for candidato in candidatos:
             codigo = candidato["codigo"]
+            if not codigo:
+                precio = mostrar_precio(candidato["precio"], comercio)
+                print(f'  {candidato["descripcion"]} | {precio} | Sin código de barras')
+                continue
             tipo = candidato["tipo"]
             leido = candidato["control_leido"]
             esperado = candidato["control_esperado"]
@@ -62,9 +66,9 @@ def main():
             estado = "control válido" if valido else f"control inválido (leído {leido}, esperado {esperado})"
             campos = [codigo, tipo, estado]
             if candidato["descripcion"]:
-                campos.append(candidato["descripcion"])
+                campos.append(titulo_con_peso(candidato["descripcion"], candidato))
             if candidato["precio"]:
-                campos.append(f'$ {candidato["precio"]}')
+                campos.append(mostrar_precio(candidato["precio"], comercio))
             print("  " + " | ".join(campos))
             detalle = detalle_gs1(candidato)
             if detalle:
